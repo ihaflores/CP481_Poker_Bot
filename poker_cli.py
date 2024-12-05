@@ -27,6 +27,64 @@ big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
 game_over = False # flag to indicate if the game is over
 
+def kelly_call_decision(prob_win: float, pot_size: float, call_amount: float, stack: float) -> float:
+    """
+    Determine how much of your stack you should be willing to risk calling based on the Kelly criterion.
+    
+    Parameters:
+    - prob_win (float): Probability of winning (0 < prob_win < 1).
+    - pot_size (float): Current pot size before your call.
+    - call_amount (float): The amount you must put in to call.
+    - stack (float): Your current stack size.
+    
+    Returns:
+    float: The recommended maximum call amount based on Kelly criterion.
+           If negative or zero, it suggests not calling.
+    """
+    # Calculate odds b = pot_size / call_amount
+    if call_amount <= 0:
+        # If call_amount is zero (e.g., free to call), just return 0 since there's no cost.
+        # In reality, if it's free, just call, but here we just return 0 as there's no cost to consider.
+        return 0.0
+
+    b = pot_size / call_amount
+    # Kelly fraction
+    f = (prob_win * (b + 1) - 1) / b
+
+    # If f <= 0, it's not profitable by Kelly standards to call.
+    # If f > 0, risk up to f * stack.
+    if f <= 0:
+        return 0.0
+    else:
+        # The call_amount required might be more or less than f * stack. 
+        # The Kelly suggestion would be to not risk more than f * stack.
+        return min(call_amount, f * stack)
+
+
+def kelly_open_bet_decision(prob_win: float, stack: float) -> float:
+    """
+    Determine how much to open-bet using a simplified Kelly approach when no bet is placed.
+    Assumes a scenario where if called, you effectively get 1:1 on your money.
+    
+    Parameters:
+    - prob_win (float): Probability of winning (0 < prob_win < 1).
+    - stack (float): Your current stack size.
+    
+    Returns:
+    float: The recommended bet amount based on the Kelly criterion.
+           If negative or zero, it suggests not betting.
+    """
+    # In the simplified scenario b=1, so:
+    # f = 2 * prob_win - 1
+    f = 2 * prob_win - 1
+
+    if f <= 0:
+        # Not profitable to bet by Kelly standards
+        return 0.0
+    else:
+        # Bet fraction f of your stack
+        return f * stack
+
 def player_action(player):
     """Prompt player for an action."""
     hand = tuple(state.get_down_cards(player))
@@ -181,7 +239,14 @@ if __name__ == '__main__':
                 sample_count=1000,
             )
             print(f"Player {current_player} hand strength: {hand_strength}")
-
+            
+            if state.checking_or_calling_amount == 0:
+                pot_bet = kelly_open_bet_decision(hand_strength, state.stacks[current_player])
+                print(f"Pot bet: {pot_bet}")
+            else:
+                pot_call = kelly_call_decision(hand_strength, state.total_pot_amount, state.checking_or_calling_amount, state.stacks[current_player])
+                print(f"Pot call: {pot_call}")
+                
             # Run next player action
             player_action(current_player)
 
