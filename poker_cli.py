@@ -25,7 +25,6 @@ folded_players = set() # set to track what players have folded
 small_blind_idx = 0 # start with first player as the small blind
 big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
-curr_player_idx = starting_player_idx # current player begins as the starting player
 game_over = False # flag to indicate if the game is over
 
 # Deal the initial hole cards to all players in sequence, one at a time
@@ -70,16 +69,6 @@ def player_action(player):
             print(f"Please input a valid action")
             continue
         break
-        
-
-def get_next_player():
-    """Find the next active player in turn order."""
-    global curr_player_idx
-    while True:
-        curr_player_idx = (curr_player_idx + 1) % len(players)
-        if not is_folded(curr_player_idx):
-            break
-    return players[curr_player_idx]
 
 def get_player_hand(player):
     board_cards_tuple = tuple(state.get_board_cards(0))
@@ -151,7 +140,6 @@ def find_winner():
 
 # Game rounds
 for stage in ["pre-flop", "flop", "turn", "river"]:
-    print(f"DEBUG: STAGE CHANGE: PLAYER {state.actor_index}'s TURN")
     # Check if game has ended early
     if game_over:
         break
@@ -166,10 +154,7 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         state.deal_board(1)  # Deal one community card for turn and river
 
     for _ in range(len(players) - len(folded_players)):
-        print(f"DEBUG: PLAYER {state.actor_index}'s TURN")
-        current_player = players[curr_player_idx]
-        if is_folded(current_player):
-            current_player = get_next_player()
+        current_player = players[state.actor_index]
         
         board_cards = get_board_cards()
         player_hole_cards = get_player_hole_cards(current_player)
@@ -188,10 +173,6 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         print(f"Player {current_player} hand strength: {hand_strength}")
 
         player_action(current_player)
-
-        # Move to the next player
-        current_player = get_next_player()
-        # curr_player_idx = state.actor_index
 
         # Check if all players have folded except one
         if len(folded_players) == len(players) - 1:
