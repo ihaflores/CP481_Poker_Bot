@@ -20,15 +20,12 @@ state = NoLimitTexasHoldem.create_state(
     3 # Set the number of players
 )
 
+# Global vars
 players = [x for x in state.player_indices]
 small_blind_idx = 0 # start with first player as the small blind
 big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
 game_over = False # flag to indicate if the game is over
-
-# Deal the initial hole cards to all players in sequence, one at a time
-for player in range(state.player_count * 2):
-    state.deal_hole()
 
 def player_action(player):
     """Prompt player for an action."""
@@ -144,59 +141,64 @@ def check_game_over():
     else:
         return False
 
-# Game rounds
-for stage in ["pre-flop", "flop", "turn", "river"]:
-    # Check if game has ended early
-    if game_over:
-        break
+if __name__ == '__main__':
+    # Deal the initial hole cards to all players in sequence, one at a time
+    for player in range(state.player_count * 2):
+        state.deal_hole()
 
-    # Start next round
-    print(f"\n{stage.capitalize()} round:")
-    if stage == "flop":
-        state.burn_card()
-        state.deal_board(3)  # Deal three community cards for the flop
-    elif stage == "turn" or stage == "river":
-        state.burn_card()
-        state.deal_board(1)  # Deal one community card for turn and river
-
-    while state.checking_or_calling_amount is not None:
-        # Get the current player
-        current_player = players[state.actor_index]
-        
-        # Get player's hole cards and board cards
-        board_cards = get_board_cards()
-        player_hole_cards = get_player_hole_cards(current_player)
-
-        # Calculate player's hand strength
-        hand_strength = calculate_hand_strength(
-            state.player_count, # Number of players
-            parse_range(player_hole_cards), # Hole cards
-            Card.parse(board_cards), # Board cards
-            2,
-            5,
-            Deck.STANDARD,
-            (StandardHighHand, ),
-            sample_count=1000,
-        )
-        print(f"Player {current_player} hand strength: {hand_strength}")
-
-        # Run next player action
-        player_action(current_player)
-
-        # Check if all players have folded except one
-        if check_game_over():
-            game_over = True
+    # Game rounds
+    for stage in ["pre-flop", "flop", "turn", "river"]:
+        # Check if game has ended early
+        if game_over:
             break
 
-# the winner is the remaining hand, find index of remaining hole cards to find winner's player index
-winner = -1
-for player_idx in range(len(state.statuses)):
-    if state.statuses[player_idx] is True:
-        winner = player_idx
+        # Start next round
+        print(f"\n{stage.capitalize()} round:")
+        if stage == "flop":
+            state.burn_card()
+            state.deal_board(3)  # Deal three community cards for the flop
+        elif stage == "turn" or stage == "river":
+            state.burn_card()
+            state.deal_board(1)  # Deal one community card for turn and river
 
-# Get the winning hand
-winning_hand = get_player_hand(winner)
+        while state.checking_or_calling_amount is not None:
+            # Get the current player
+            current_player = players[state.actor_index]
+            
+            # Get player's hole cards and board cards
+            board_cards = get_board_cards()
+            player_hole_cards = get_player_hole_cards(current_player)
 
-# Display the winner and winning hand
-print(f"The winner is Player {winner}!")
-print(f"Winning Hand: {winning_hand}")
+            # Calculate player's hand strength
+            hand_strength = calculate_hand_strength(
+                state.player_count, # Number of players
+                parse_range(player_hole_cards), # Hole cards
+                Card.parse(board_cards), # Board cards
+                2,
+                5,
+                Deck.STANDARD,
+                (StandardHighHand, ),
+                sample_count=1000,
+            )
+            print(f"Player {current_player} hand strength: {hand_strength}")
+
+            # Run next player action
+            player_action(current_player)
+
+            # Check if all players have folded except one
+            if check_game_over():
+                game_over = True
+                break
+
+    # the winner is the remaining hand, find index of remaining hole cards to find winner's player index
+    winner = -1
+    for player_idx in range(len(state.statuses)):
+        if state.statuses[player_idx] is True:
+            winner = player_idx
+
+    # Get the winning hand
+    winning_hand = get_player_hand(winner)
+
+    # Display the winner and winning hand
+    print(f"The winner is Player {winner}!")
+    print(f"Winning Hand: {winning_hand}")
