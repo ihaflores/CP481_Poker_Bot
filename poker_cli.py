@@ -21,7 +21,6 @@ state = NoLimitTexasHoldem.create_state(
 )
 
 players = [x for x in state.player_indices]
-folded_players = set() # set to track what players have folded
 small_blind_idx = 0 # start with first player as the small blind
 big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
@@ -30,11 +29,6 @@ game_over = False # flag to indicate if the game is over
 # Deal the initial hole cards to all players in sequence, one at a time
 for player in range(state.player_count * 2):
     state.deal_hole()
-
-def is_folded(player):
-    if player in folded_players:
-        return True
-    return False
 
 def player_action(player):
     """Prompt player for an action."""
@@ -63,7 +57,6 @@ def player_action(player):
                 continue
             state.complete_bet_or_raise_to(amount)
         elif action == "fold":
-            folded_players.add(player)
             state.fold()
         else:
             print(f"Please input a valid action")
@@ -138,6 +131,18 @@ def find_winner():
 
     print(f"The winner is Player {winning_player} with a hand rank of {best_hand}.")
 
+def check_game_over():
+    # Check if all players but one have folded
+    count = 0
+    for status in state.statuses:
+        if status is True:
+            count += 1
+    
+    if count == 1:
+        return True
+    else:
+        return False
+
 # Game rounds
 for stage in ["pre-flop", "flop", "turn", "river"]:
     # Check if game has ended early
@@ -153,7 +158,7 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         state.burn_card()
         state.deal_board(1)  # Deal one community card for turn and river
 
-    for _ in range(len(players) - len(folded_players)):
+    while state.checking_or_calling_amount is not None:
         current_player = players[state.actor_index]
         
         board_cards = get_board_cards()
@@ -175,7 +180,7 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         player_action(current_player)
 
         # Check if all players have folded except one
-        if len(folded_players) == len(players) - 1:
+        if check_game_over():
             game_over = True
             break
 
