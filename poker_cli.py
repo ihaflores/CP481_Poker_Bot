@@ -26,6 +26,7 @@ small_blind_idx = 0 # start with first player as the small blind
 big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
 curr_player_idx = starting_player_idx # current player begins as the starting player
+game_over = False # flag to indicate if the game is over
 
 # Deal the initial hole cards to all players in sequence, one at a time
 for player in range(state.player_count * 2):
@@ -42,19 +43,25 @@ def player_action(player):
     print(f"Pot: {state.total_pot_amount} | Player {player}'s Stack: {tuple(state.stacks)[player]}")
     print(f"Player {player}'s turn with {tuple(state.get_down_cards(player))}")
     print(f"Board Cards: {tuple(state.get_board_cards(0))}")
+    print(f"Check/Call amount: {state.checking_or_calling_amount}")
+    print(f"The minimum completion, betting, or raising to amount: {state.min_completion_betting_or_raising_to_amount}")
 
     while True:
         action = input("Choose action: check, call, bet, raise, fold: ").strip().lower()
         print(f"\n")
-        if action == "check":
-            state.check_or_call()
-        elif action == "call":
+        if action == "check" or action == "call":
             state.check_or_call()
         elif action == "bet":
             amount = int(input("Enter bet amount: "))
+            if amount < state.min_completion_betting_or_raising_to_amount:
+                print(f"Bet amount is less than the minimum of {state.min_completion_betting_or_raising_to_amount}. Please input a valid bet amount")
+                continue
             state.complete_bet_or_raise_to(amount)
         elif action == "raise":
             amount = int(input("Enter raise amount: "))
+            if amount < state.min_completion_betting_or_raising_to_amount:
+                print(f"Raise amount is less than the minimum of {state.min_completion_betting_or_raising_to_amount}. Please input a valid raise amount")
+                continue
             state.complete_bet_or_raise_to(amount)
         elif action == "fold":
             folded_players.add(player)
@@ -128,9 +135,6 @@ def find_winner():
     print(f"Board Cards: {tuple(state.get_board_cards(0))}\n")
 
     for player in state.player_indices:
-        if is_folded(player): # Skip folded players
-            continue
-
         # display player's hole cards
         print(f"Player {player}: {tuple(state.get_down_cards(player))}\n")
 
@@ -147,8 +151,13 @@ def find_winner():
 
 # Game rounds
 for stage in ["pre-flop", "flop", "turn", "river"]:
+    print(f"DEBUG: STAGE CHANGE: PLAYER {state.actor_index}'s TURN")
+    # Check if game has ended early
+    if game_over:
+        break
+
+    # Start next round
     print(f"\n{stage.capitalize()} round:")
-    
     if stage == "flop":
         state.burn_card()
         state.deal_board(3)  # Deal three community cards for the flop
@@ -157,6 +166,7 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         state.deal_board(1)  # Deal one community card for turn and river
 
     for _ in range(len(players) - len(folded_players)):
+        print(f"DEBUG: PLAYER {state.actor_index}'s TURN")
         current_player = players[curr_player_idx]
         if is_folded(current_player):
             current_player = get_next_player()
@@ -181,12 +191,20 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
 
         # Move to the next player
         current_player = get_next_player()
+        # curr_player_idx = state.actor_index
 
-# winner is remaining hand, find index of remaining hole cards
+        # Check if all players have folded except one
+        if len(folded_players) == len(players) - 1:
+            game_over = True
+            break
+
+# the winner is the remaining hand, find index of remaining hole cards to find winner's player index
 winner = -1
 for player_idx in range(len(state.statuses)):
     if state.statuses[player_idx] is True:
         winner = player_idx
+
+# if state.
 winning_hand = get_player_hand(winner)
 
 print(f"The winner is Player {winner}!")
