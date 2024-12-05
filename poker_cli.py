@@ -138,6 +138,7 @@ def check_game_over():
         if status is True:
             count += 1
     
+    # If only 1 player remains, the game is over
     if count == 1:
         return True
     else:
@@ -159,11 +160,14 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
         state.deal_board(1)  # Deal one community card for turn and river
 
     while state.checking_or_calling_amount is not None:
+        # Get the current player
         current_player = players[state.actor_index]
         
+        # Get player's hole cards and board cards
         board_cards = get_board_cards()
         player_hole_cards = get_player_hole_cards(current_player)
 
+        # Calculate player's hand strength
         hand_strength = calculate_hand_strength(
             state.player_count, # Number of players
             parse_range(player_hole_cards), # Hole cards
@@ -174,9 +178,9 @@ for stage in ["pre-flop", "flop", "turn", "river"]:
             (StandardHighHand, ),
             sample_count=1000,
         )
-
         print(f"Player {current_player} hand strength: {hand_strength}")
 
+        # Run next player action
         player_action(current_player)
 
         # Check if all players have folded except one
@@ -190,8 +194,9 @@ for player_idx in range(len(state.statuses)):
     if state.statuses[player_idx] is True:
         winner = player_idx
 
-# if state.
+# Get the winning hand
 winning_hand = get_player_hand(winner)
 
+# Display the winner and winning hand
 print(f"The winner is Player {winner}!")
 print(f"Winning Hand: {winning_hand}")
