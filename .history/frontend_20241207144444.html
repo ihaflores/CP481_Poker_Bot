@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Game UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2b2b2b;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-board {
+            width: 80%;
+            margin: 20px;
+            padding: 20px;
+            background-color: #333;
+            border-radius: 10px;
+        }
+        .player {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #444;
+            border-radius: 5px;
+        }
+        #actions {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4caf50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #888;
+            cursor: not-allowed;
+        }
+        #logs {
+            margin-top: 20px;
+            background-color: #222;
+            padding: 10px;
+            border-radius: 5px;
+            height: 150px;
+            overflow-y: scroll;
+        }
+        #new-game {
+            display: none;
+            margin-top: 20px;
+        }
+        .game-info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #444;
+            border-radius: 5px;
+        }
+        .error-message {
+            color: #ff4444;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .winning-message {
+            color: #4CAF50;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Poker Game</h1>
+    <div id="game-board">
+        <div id="round">
+            <h2>Round: <span id="current-round">Pre-flop</span></h2>
+        </div>
+        
+        <div class="game-info">
+            <h3>Current Player Info:</h3>
+            <p>Player: <span id="current-player-id">Player 0</span></p>
+            <p>Hand: <span id="player-hand">()</span></p>
+            <p>Hand Strength: <span id="hand-strength">0.000</span></p>
+            <p>Stack: <span id="player-stack">10000</span></p>
+            <p>Pot Call: <span id="pot-call">0</span></p>
+        </div>
+
+        <div class="game-info">
+            <h3>Game State:</h3>
+            <p>Pot: <span id="pot-amount">0</span></p>
+            <p>Board Cards: <span id="board"></span></p>
+            <p>Check/Call Amount: <span id="call-amount">0</span></p>
+            <p>Minimum Bet/Raise: <span id="min-bet">0</span></p>
+        </div>
+
+        <div id="players">
+            <!-- Player info will be dynamically added here -->
+        </div>
+    </div>
+
+    <div id="actions">
+        <button onclick="performAction('check')">Check</button>
+        <button onclick="performAction('call')">Call</button>
+        <button onclick="openBetUI()">Bet</button>
+        <button onclick="openRaiseUI()">Raise</button>
+        <button onclick="performAction('fold')">Fold</button>
+        
+        <div id="bet-raise-ui" style="display:none;">
+            <input type="number" id="bet-amount" placeholder="Enter amount" />
+            <button onclick="submitBetRaise()">Submit</button>
+            <div id="validation-message" class="error-message"></div>
+        </div>
+    </div>
+
+    <div id="new-game">
+        <button onclick="startNewGame()">Start New Game</button>
+    </div>
+    <div id="logs">
+        <!-- Game logs will be dynamically added here -->
+    </div>
+
+    <script>
+        // Add these variables to track betting and pot structure
+        let mainPot = 0;
+        let sidePots = [];
+        let currentBet = 0;
+        let lastRaiseAmount = 0;
+        let minBet = 400;  // Starting minimum bet (big blind)
+        let smallBlind = 200;
+        let bigBlind = 400;
+        let currentBettingRound = 0;
+
+        // Initialize players with more detailed betting information
+        const players = [
+            { 
+                id: 0, 
+                stack: 10000, 
+                status: 'Active', 
+                hand: "(7d, 5h)",
+                currentBet: 0,
+                totalBetThisRound: 0,
+                isAllIn: false
+            },
+            // ... similar for other players
+        ];
+
+        function initializeGame() {
+            // Post blinds
+            const sbPlayer = players[0];
+            const bbPlayer = players[1];
+            postBlind(sbPlayer, smallBlind);
+            postBlind(bbPlayer, bigBlind);
+            currentBet = bigBlind;
+            
+            // ... rest of initialization
+        }
+
+        function postBlind(player, amount) {
+            player.stack -= amount;
+            player.currentBet = amount;
+            player.totalBetThisRound = amount;
+            mainPot += amount;
+            addLog(`Player ${player.id} posts ${amount === smallBlind ? 'small blind' : 'big blind'}: ${amount}`);
+        }
+
+        function submitBetRaise() {
+            const amount = parseInt(document.getElementById('bet-amount').value, 10);
+            const player = players[currentPlayerIndex];
+            const action = document.getElementById('bet-raise-ui').dataset.action;
+            
+            // Validate bet/raise amount
+            if (action === 'bet') {
+                if (amount < minBet || amount < bigBlind) {
+                    document.getElementById('validation-message').textContent = 
+                        `Bet must be at least ${Math.max(minBet, bigBlind)}`;
+                    return;
+                }
+            } else if (action === 'raise') {
+                const minRaiseAmount = currentBet + lastRaiseAmount;
+                if (amount < minRaiseAmount) {
+                    document.getElementById('validation-message').textContent = 
+                        `Raise must be at least ${minRaiseAmount}`;
+                    return;
+                }
+            }
+
+            // Handle all-in situations
+            if (amount >= player.stack) {
+                handleAllIn(player, amount);
+                return;
+            }
+
+            // Process bet/raise
+            const totalBet = amount + player.totalBetThisRound;
+            player.stack -= amount;
+            player.currentBet = amount;
+            player.totalBetThisRound += amount;
+            mainPot += amount;
+
+            if (action === 'bet') {
+                currentBet = amount;
+                lastRaiseAmount = amount;
+            } else {
+                lastRaiseAmount = amount - currentBet;
+                currentBet = amount;
+            }
+
+            addLog(`Player ${player.id} ${action}s: ${amount}`);
+            nextPlayer();
+            updateUI();
+        }
+
+        function handleAllIn(player, amount) {
+            const allInAmount = player.stack;
+            player.stack = 0;
+            player.isAllIn = true;
+            
+            // Create side pot if necessary
+            if (allInAmount < currentBet) {
+                createSidePot(player, allInAmount);
+            }
+
+            mainPot += allInAmount;
+            player.currentBet = allInAmount;
+            player.totalBetThisRound += allInAmount;
+            
+            addLog(`Player ${player.id} is ALL IN with ${allInAmount}`);
+            nextPlayer();
+            updateUI();
+        }
+
+        function createSidePot(allInPlayer, allInAmount) {
+            const sidePot = {
+                amount: 0,
+                eligiblePlayers: players.filter(p => !p.isAllIn && p.status === 'Active')
+            };
+            sidePots.push(sidePot);
+        }
+
+        function performAction(action) {
+            if (gameOver) return;
+
+            const player = players[currentPlayerIndex];
+
+            switch(action) {
+                case 'call':
+                    handleCall(player);
+                    break;
+                case 'check':
+                    if (currentBet > player.totalBetThisRound) {
+                        addLog('Invalid action: Cannot check when there is a bet to call');
+                        return;
+                    }
+                    addLog(`Player ${player.id} checks`);
+                    break;
+                case 'fold':
+                    player.status = 'Folded';
+                    addLog(`Player ${player.id} folds`);
+                    break;
+            }
+
+            if (isRoundComplete()) {
+                startNewBettingRound();
+            } else {
+                nextPlayer();
+            }
+            updateUI();
+        }
+
+        function handleCall(player) {
+            const callAmount = currentBet - player.totalBetThisRound;
+            if (callAmount > player.stack) {
+                handleAllIn(player, player.stack);
+                return;
+            }
+
+            player.stack -= callAmount;
+            player.currentBet = callAmount;
+            player.totalBetThisRound += callAmount;
+            mainPot += callAmount;
+            addLog(`Player ${player.id} calls ${callAmount}`);
+        }
+
+        function isRoundComplete() {
+            const activePlayers = players.filter(p => p.status === 'Active');
+            return activePlayers.every(p => 
+                p.totalBetThisRound === currentBet || p.isAllIn
+            );
+        }
+
+        function startNewBettingRound() {
+            currentBettingRound++;
+            currentBet = 0;
+            lastRaiseAmount = 0;
+            players.forEach(p => {
+                p.currentBet = 0;
+                p.totalBetThisRound = 0;
+            });
+            
+            if (currentBettingRound >= 4) { // After River
+                showdown();
+            } else {
+                // Deal next street
+                currentRoundIndex++;
+                updateBoard(boardCards[rounds[currentRoundIndex]]);
+            }
+        }
+
+        function showdown() {
+            // Handle main pot
+            const mainPotWinner = determineWinner(players.filter(p => p.status === 'Active'));
+            mainPotWinner.stack += mainPot;
+            addLog(`Player ${mainPotWinner.id} wins main pot of ${mainPot}`);
+
+            // Handle side pots
+            sidePots.forEach((sidePot, index) => {
+                const sidePotWinner = determineWinner(sidePot.eligiblePlayers);
+                sidePotWinner.stack += sidePot.amount;
+                addLog(`Player ${sidePotWinner.id} wins side pot ${index + 1} of ${sidePot.amount}`);
+            });
+
+            endGame();
+        }
+
+        // ... rest of your existing code ...
+    </script>
+</body>
+</html>
