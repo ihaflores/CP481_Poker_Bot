@@ -20,21 +20,70 @@ state = NoLimitTexasHoldem.create_state(
     3 # Set the number of players
 )
 
+# Global vars
 players = [x for x in state.player_indices]
-folded_players = set() # set to track what players have folded
 small_blind_idx = 0 # start with first player as the small blind
 big_blind_idx = small_blind_idx  + 1 # big blind is to left of small blind
 starting_player_idx = big_blind_idx + 1 # starting player is player to left of big blind
-curr_player_idx = starting_player_idx # current player begins as the starting player
+game_over = False # flag to indicate if the game is over
 
-# Deal the initial hole cards to all players in sequence, one at a time
-for player in range(state.player_count * 2):
-    state.deal_hole()
+def kelly_call_decision(prob_win: float, pot_size: float, call_amount: float, stack: float) -> float:
+    """
+    Determine how much of your stack you should be willing to risk calling based on the Kelly criterion.
+    
+    Parameters:
+    - prob_win (float): Probability of winning (0 < prob_win < 1).
+    - pot_size (float): Current pot size before your call.
+    - call_amount (float): The amount you must put in to call.
+    - stack (float): Your current stack size.
+    
+    Returns:
+    float: The recommended maximum call amount based on Kelly criterion.
+           If negative or zero, it suggests not calling.
+    """
+    # Calculate odds b = pot_size / call_amount
+    if call_amount <= 0:
+        # If call_amount is zero (e.g., free to call), just return 0 since there's no cost.
+        # In reality, if it's free, just call, but here we just return 0 as there's no cost to consider.
+        return 0.0
 
-def is_folded(player):
-    if player in folded_players:
-        return True
-    return False
+    b = pot_size / call_amount
+    # Kelly fraction
+    f = (prob_win * (b + 1) - 1) / b
+
+    # If f <= 0, it's not profitable by Kelly standards to call.
+    # If f > 0, risk up to f * stack.
+    if f <= 0:
+        return 0.0
+    else:
+        # The call_amount required might be more or less than f * stack. 
+        # The Kelly suggestion would be to not risk more than f * stack.
+        return min(call_amount, f * stack)
+
+
+def kelly_open_bet_decision(prob_win: float, stack: float) -> float:
+    """
+    Determine how much to open-bet using a simplified Kelly approach when no bet is placed.
+    Assumes a scenario where if called, you effectively get 1:1 on your money.
+    
+    Parameters:
+    - prob_win (float): Probability of winning (0 < prob_win < 1).
+    - stack (float): Your current stack size.
+    
+    Returns:
+    float: The recommended bet amount based on the Kelly criterion.
+           If negative or zero, it suggests not betting.
+    """
+    # In the simplified scenario b=1, so:
+    # f = 2 * prob_win - 1
+    f = 2 * prob_win - 1
+
+    if f <= 0:
+        # Not profitable to bet by Kelly standards
+        return 0.0
+    else:
+        # Bet fraction f of your stack
+        return f * stack
 
 def player_action(player):
     """Prompt player for an action."""
@@ -42,37 +91,32 @@ def player_action(player):
     print(f"Pot: {state.total_pot_amount} | Player {player}'s Stack: {tuple(state.stacks)[player]}")
     print(f"Player {player}'s turn with {tuple(state.get_down_cards(player))}")
     print(f"Board Cards: {tuple(state.get_board_cards(0))}")
+    print(f"Check/Call amount: {state.checking_or_calling_amount}")
+    print(f"The minimum completion, betting, or raising to amount: {state.min_completion_betting_or_raising_to_amount}")
 
     while True:
         action = input("Choose action: check, call, bet, raise, fold: ").strip().lower()
         print(f"\n")
-        if action == "check":
-            state.check_or_call()
-        elif action == "call":
+        if action == "check" or action == "call":
             state.check_or_call()
         elif action == "bet":
             amount = int(input("Enter bet amount: "))
+            if amount < state.min_completion_betting_or_raising_to_amount:
+                print(f"Bet amount is less than the minimum of {state.min_completion_betting_or_raising_to_amount}. Please input a valid bet amount")
+                continue
             state.complete_bet_or_raise_to(amount)
         elif action == "raise":
             amount = int(input("Enter raise amount: "))
+            if amount < state.min_completion_betting_or_raising_to_amount:
+                print(f"Raise amount is less than the minimum of {state.min_completion_betting_or_raising_to_amount}. Please input a valid raise amount")
+                continue
             state.complete_bet_or_raise_to(amount)
         elif action == "fold":
-            folded_players.add(player)
             state.fold()
         else:
             print(f"Please input a valid action")
             continue
         break
-        
-
-def get_next_player():
-    """Find the next active player in turn order."""
-    global curr_player_idx
-    while True:
-        curr_player_idx = (curr_player_idx + 1) % len(players)
-        if not is_folded(curr_player_idx):
-            break
-    return players[curr_player_idx]
 
 def get_player_hand(player):
     board_cards_tuple = tuple(state.get_board_cards(0))
@@ -128,9 +172,6 @@ def find_winner():
     print(f"Board Cards: {tuple(state.get_board_cards(0))}\n")
 
     for player in state.player_indices:
-        if is_folded(player): # Skip folded players
-            continue
-
         # display player's hole cards
         print(f"Player {player}: {tuple(state.get_down_cards(player))}\n")
 
@@ -145,49 +186,84 @@ def find_winner():
 
     print(f"The winner is Player {winning_player} with a hand rank of {best_hand}.")
 
-# Game rounds
-for stage in ["pre-flop", "flop", "turn", "river"]:
-    print(f"\n{stage.capitalize()} round:")
+def check_game_over():
+    # Check if all players but one have folded
+    count = 0
+    for status in state.statuses:
+        if status is True:
+            count += 1
     
-    if stage == "flop":
-        state.burn_card()
-        state.deal_board(3)  # Deal three community cards for the flop
-    elif stage == "turn" or stage == "river":
-        state.burn_card()
-        state.deal_board(1)  # Deal one community card for turn and river
+    # If only 1 player remains, the game is over
+    if count == 1:
+        return True
+    else:
+        return False
 
-    for _ in range(len(players) - len(folded_players)):
-        current_player = players[curr_player_idx]
-        if is_folded(current_player):
-            current_player = get_next_player()
-        
-        board_cards = get_board_cards()
-        player_hole_cards = get_player_hole_cards(current_player)
+if __name__ == '__main__':
+    # Deal the initial hole cards to all players in sequence, one at a time
+    for player in range(state.player_count * 2):
+        state.deal_hole()
 
-        hand_strength = calculate_hand_strength(
-            state.player_count, # Number of players
-            parse_range(player_hole_cards), # Hole cards
-            Card.parse(board_cards), # Board cards
-            2,
-            5,
-            Deck.STANDARD,
-            (StandardHighHand, ),
-            sample_count=1000,
-        )
+    # Game rounds
+    for stage in ["pre-flop", "flop", "turn", "river"]:
+        # Check if game has ended early
+        if game_over:
+            break
 
-        print(f"Player {current_player} hand strength: {hand_strength}")
+        # Start next round
+        print(f"\n{stage.capitalize()} round:")
+        if stage == "flop":
+            state.burn_card()
+            state.deal_board(3)  # Deal three community cards for the flop
+        elif stage == "turn" or stage == "river":
+            state.burn_card()
+            state.deal_board(1)  # Deal one community card for turn and river
 
-        player_action(current_player)
+        while state.checking_or_calling_amount is not None:
+            # Get the current player
+            current_player = players[state.actor_index]
+            
+            # Get player's hole cards and board cards
+            board_cards = get_board_cards()
+            player_hole_cards = get_player_hole_cards(current_player)
 
-        # Move to the next player
-        current_player = get_next_player()
+            # Calculate player's hand strength
+            hand_strength = calculate_hand_strength(
+                state.player_count, # Number of players
+                parse_range(player_hole_cards), # Hole cards
+                Card.parse(board_cards), # Board cards
+                2,
+                5,
+                Deck.STANDARD,
+                (StandardHighHand, ),
+                sample_count=1000,
+            )
+            print(f"Player {current_player} hand strength: {hand_strength}")
+            
+            if state.checking_or_calling_amount == 0:
+                pot_bet = kelly_open_bet_decision(hand_strength, state.stacks[current_player])
+                print(f"Pot bet: {pot_bet}")
+            else:
+                pot_call = kelly_call_decision(hand_strength, state.total_pot_amount, state.checking_or_calling_amount, state.stacks[current_player])
+                print(f"Pot call: {pot_call}")
+                
+            # Run next player action
+            player_action(current_player)
 
-# winner is remaining hand, find index of remaining hole cards
-winner = -1
-for player_idx in range(len(state.statuses)):
-    if state.statuses[player_idx] is True:
-        winner = player_idx
-winning_hand = get_player_hand(winner)
+            # Check if all players have folded except one
+            if check_game_over():
+                game_over = True
+                break
 
-print(f"The winner is Player {winner}!")
-print(f"Winning Hand: {winning_hand}")
+    # the winner is the remaining hand, find index of remaining hole cards to find winner's player index
+    winner = -1
+    for player_idx in range(len(state.statuses)):
+        if state.statuses[player_idx] is True:
+            winner = player_idx
+
+    # Get the winning hand
+    winning_hand = get_player_hand(winner)
+
+    # Display the winner and winning hand
+    print(f"The winner is Player {winner}!")
+    print(f"Winning Hand: {winning_hand}")
