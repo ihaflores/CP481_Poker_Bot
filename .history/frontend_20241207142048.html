@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2b2b2b;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #game-board {
+            width: 80%;
+            padding: 20px;
+            background-color: #333;
+            border-radius: 10px;
+        }
+        .player {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #444;
+            border-radius: 5px;
+        }
+        #actions, #logs {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4caf50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #888;
+            cursor: not-allowed;
+        }
+        #logs {
+            background-color: #222;
+            padding: 10px;
+            border-radius: 5px;
+            height: 150px;
+            overflow-y: scroll;
+        }
+    </style>
+</head>
+<body>
+    <h1>Poker Game</h1>
+    <div id="game-board">
+        <div id="players"></div>
+        <h2>Board Cards: <span id="board"></span></h2>
+        <h3>Pot: <span id="pot">0</span></h3>
+    </div>
+    <div id="logs"></div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('update_state', (data) => {
+            document.getElementById('pot').textContent = data.pot;
+            document.getElementById('board').textContent = data.board_cards;
+
+            const playersDiv = document.getElementById('players');
+            playersDiv.innerHTML = '';
+
+            data.players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player';
+                playerDiv.innerHTML = `
+                    <span>Player ${player.id}</span>
+                    <span>Stack: ${player.stack}</span>
+                    <span>Status: ${player.status}</span>
+                    <span>Hand: ${player.hand}</span>
+                `;
+                playersDiv.appendChild(playerDiv);
+            });
+        });
+
+        socket.on('game_end', (data) => {
+            const logDiv = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `Winner: Player ${data.winner.id} with ${data.winner.hand}`;
+            logDiv.appendChild(logEntry);
+        });
+    </script>
+</body>
+</html>

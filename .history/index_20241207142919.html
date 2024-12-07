@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Game UI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Poker Game</h1>
+    <div id="game-board">
+        <div id="players">
+            <!-- Player info will be dynamically added here -->
+        </div>
+        <div id="board-cards">
+            <!-- Board cards will be shown here -->
+            <h2>Board Cards: <span id="board"></span></h2>
+        </div>
+        <div id="pot">
+            <h3>Pot: <span id="pot-amount">0</span></h3>
+        </div>
+        <div id="round">
+            <h3>Round: <span id="current-round">Pre-flop</span></h3>
+        </div>
+        <div id="current-player">
+            <h3>Current Player: <span id="current-player-id">Player 0</span></h3>
+            <h4>Hand Strength: <span id="hand-strength">0.000</span></h4>
+            <h4>Check/Call Amount: <span id="call-amount">0</span></h4>
+            <h4>Minimum Bet/Raise: <span id="min-bet">0</span></h4>
+        </div>
+    </div>
+    <div id="actions">
+        <button onclick="performAction('check')">Check</button>
+        <button onclick="performAction('call')">Call</button>
+        <button onclick="openBetUI()">Bet</button>
+        <button onclick="openRaiseUI()">Raise</button>
+        <button onclick="performAction('fold')">Fold</button>
+        <div id="bet-raise-ui" style="display:none;">
+            <input type="number" id="bet-amount" placeholder="Enter amount" />
+            <button onclick="submitBetRaise()">Submit</button>
+        </div>
+    </div>
+    <div id="new-game">
+        <button onclick="startNewGame()">Start New Game</button>
+    </div>
+    <div id="logs">
+        <!-- Game logs will be dynamically added here -->
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
